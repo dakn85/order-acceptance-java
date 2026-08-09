@@ -39,10 +39,10 @@ public class OrderSteps {
     private static final ObjectMapper JSON = new ObjectMapper();
     private static final MediaType JSON_MEDIA = MediaType.get("application/json");
 
-    private final boolean mock = "mock".equalsIgnoreCase(env("ORDER_TEST_MODE", "mock"));
-    private final String api = env("ORDER_API_URL", "http://localhost:18081");
-    private final String ui = env("ORDER_UI_URL", "http://localhost:18080");
-    private final String brokers = env("KAFKA_BROKERS", "localhost:19092");
+    private final boolean mock = "mock".equalsIgnoreCase(env("ORDER_TEST_MODE", "integration"));
+    private final String api = env("ORDER_API_URL", "http://order-service:8080");
+    private final String ui = env("ORDER_UI_URL", "http://order-ui:8083");
+    private final String brokers = env("KAFKA_BROKERS", "redpanda:9092");
     private final OkHttpClient http = new OkHttpClient();
 
     private MockWebServer mockApi;

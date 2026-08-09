@@ -8,18 +8,20 @@ getrennte Testebenen:
 - REST mit OkHttp gegen den Order Command Service,
 - Kafka mit dem Java-Consumer gegen das Confluent-Avro-Event.
 
-`default` ist der deterministische Entwicklungs-/Pipeline-Modus. Er verwendet
-eine lokale HTML-Seite, `MockWebServer` und `MockProducer`, aber exakt dieselben
-Gauge-Bindings. Es werden keine Demo-Dienste benötigt:
+`default` ist die Plattformumgebung und verwendet ausdrücklich die internen
+Compose-/Kubernetes-Adressen `order-ui:8083`, `order-service:8080` und
+`redpanda:9092`:
 
 ```sh
 gauge run --env default specs
 ```
 
-`platform` fährt dieselben Specs gegen die Services der Acceptance-Umgebung:
+`mock` ist ausschließlich der deterministische Entwicklungs-/Pipeline-Modus.
+Er verwendet eine lokale HTML-Seite, `MockWebServer` und `MockProducer`, aber
+exakt dieselben Gauge-Bindings und benötigt keine Demo-Dienste:
 
 ```sh
-gauge run --env platform specs
+gauge run --env mock specs
 ```
 
 Der KnippQAi-Runner verwendet Java 25 und kompiliert dieses Projekt mit
