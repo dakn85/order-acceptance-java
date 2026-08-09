@@ -1,0 +1,7 @@
+.gauge/
+.knippq-java-classpath
+.knippq-java-home/
+logs/
+reports/
+target/
+build/
