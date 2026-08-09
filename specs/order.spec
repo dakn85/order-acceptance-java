@@ -6,7 +6,7 @@ Tags: java, order-demo
 
 * The trader opens the order entry page
 * The trader submits a "BUY" order for "10" "SAP" at "180.00" EUR through the UI
-* The order blotter shows "SAP" with status "NEW"
+* The order blotter shows "SAP" with status "PARTIALLY_FILLED"
 
 ## REST — command API accepts a valid limit order
 

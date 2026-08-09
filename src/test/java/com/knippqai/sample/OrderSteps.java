@@ -2,9 +2,6 @@ package com.knippqai.sample;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.microsoft.playwright.Browser;
-import com.microsoft.playwright.Page;
-import com.microsoft.playwright.Playwright;
 import com.thoughtworks.gauge.AfterScenario;
 import com.thoughtworks.gauge.BeforeScenario;
 import com.thoughtworks.gauge.Step;
@@ -25,6 +22,14 @@ import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.serialization.ByteArrayDeserializer;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
+import org.openqa.selenium.By;
+import org.openqa.selenium.JavascriptExecutor;
+import org.openqa.selenium.WebDriver;
+import org.openqa.selenium.chrome.ChromeDriver;
+import org.openqa.selenium.chrome.ChromeOptions;
+import org.openqa.selenium.support.ui.ExpectedConditions;
+import org.openqa.selenium.support.ui.Select;
+import org.openqa.selenium.support.ui.WebDriverWait;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -46,11 +51,10 @@ public class OrderSteps {
     private final OkHttpClient http = new OkHttpClient();
 
     private MockWebServer mockApi;
-    private Playwright playwright;
-    private Browser browser;
-    private Page page;
+    private WebDriver browser;
     private MockProducer<String, String> mockProducer;
     private JsonNode order;
+    private String uiOrderId;
     private int responseStatus;
 
     @BeforeScenario
@@ -63,38 +67,43 @@ public class OrderSteps {
 
     @AfterScenario
     public void closeAdapters() throws Exception {
-        try { if (browser != null) browser.close(); } finally { browser = null; page = null; }
-        try { if (playwright != null) playwright.close(); } finally { playwright = null; }
+        try { if (browser != null) browser.quit(); } finally { browser = null; }
         try { if (mockProducer != null) mockProducer.close(); } finally { mockProducer = null; }
         try { if (mockApi != null) mockApi.close(); } finally { mockApi = null; }
     }
 
     @Step("The trader opens the order entry page")
     public void openOrderEntry() {
-        playwright = Playwright.create();
-        browser = playwright.chromium().launch();
-        page = browser.newPage();
-        if (mock) page.setContent(mockOrderDesk());
-        else page.navigate(ui);
+        var options = new ChromeOptions().addArguments("--headless=new", "--no-sandbox", "--disable-dev-shm-usage", "--window-size=1280,800");
+        browser = new ChromeDriver(options);
+        if (mock) {
+            browser.get("about:blank");
+            ((JavascriptExecutor) browser).executeScript("document.open();document.write(arguments[0]);document.close();", mockOrderDesk());
+        } else browser.get(ui);
     }
 
     @Step("The trader submits a <side> order for <quantity> <instrument> at <price> EUR through the UI")
     public void submitThroughUi(String side, int quantity, String instrument, double price) {
-        page.getByRole(com.microsoft.playwright.options.AriaRole.BUTTON,
-            new Page.GetByRoleOptions().setName("New order")).click();
-        page.locator("select[name=instrument]").selectOption(instrument);
-        page.getByRole(com.microsoft.playwright.options.AriaRole.BUTTON,
-            new Page.GetByRoleOptions().setName(side).setExact(true)).click();
-        page.locator("input[name=quantity]").fill(String.valueOf(quantity));
-        page.locator("input[name=limitPrice]").fill(String.valueOf(price));
-        page.getByRole(com.microsoft.playwright.options.AriaRole.BUTTON,
-            new Page.GetByRoleOptions().setName("Submit order")).click();
+        browser.findElement(By.id("newOrder")).click();
+        new Select(browser.findElement(By.cssSelector("select[name=instrument]"))).selectByVisibleText(instrument);
+        browser.findElement(By.cssSelector("[data-side=\"" + side + "\"]")).click();
+        browser.findElement(By.cssSelector("input[name=quantity]")).sendKeys(String.valueOf(quantity));
+        browser.findElement(By.cssSelector("input[name=limitPrice]")).sendKeys(String.valueOf(price));
+        browser.findElement(By.cssSelector("button[type=submit]")).click();
+        var acknowledgement = new WebDriverWait(browser, Duration.ofSeconds(10))
+            .until(ExpectedConditions.visibilityOfElementLocated(By.id("formState")));
+        var text = acknowledgement.getText();
+        if (text == null || !text.startsWith("Accepted · ")) throw new AssertionError("Order UI did not acknowledge the command: " + text);
+        uiOrderId = text.substring("Accepted · ".length()).trim();
     }
 
     @Step("The order blotter shows <instrument> with status <status>")
     public void blotterShows(String instrument, String status) {
-        var row = page.locator("#orders tr", new Page.LocatorOptions().setHasText(instrument)).first();
-        row.waitFor();
+        assertNotNull(uiOrderId, "The UI did not expose the created order id");
+        var selector = By.cssSelector("[data-order-id=\"" + uiOrderId + "\"]");
+        var row = new WebDriverWait(browser, Duration.ofSeconds(10)).until(ExpectedConditions.visibilityOfElementLocated(selector));
+        new WebDriverWait(browser, Duration.ofSeconds(10)).until(driver -> status.equals(driver.findElement(selector).getAttribute("data-status")));
+        assertTrue(row.getText().contains(instrument));
         assertEquals(status, row.getAttribute("data-status"));
     }
 
@@ -163,11 +172,12 @@ public class OrderSteps {
               <button type='button' data-side='BUY'>BUY</button><button type='button' data-side='SELL'>SELL</button>
               <input name='side' type='hidden' value='BUY'><input name='quantity'><input name='limitPrice'>
               <button type='submit'>Submit order</button>
+              <div id='formState'></div>
             </form><table><tbody id='orders'></tbody></table>
             <script>
               newOrder.onclick=()=>orderForm.hidden=false;
               document.querySelectorAll('[data-side]').forEach(b=>b.onclick=()=>document.querySelector('[name=side]').value=b.dataset.side);
-              orderForm.onsubmit=e=>{e.preventDefault();const d=Object.fromEntries(new FormData(e.target));orders.innerHTML=`<tr data-status='NEW'><td>${d.instrument}</td><td>NEW</td></tr>`};
+              orderForm.onsubmit=e=>{e.preventDefault();const d=Object.fromEntries(new FormData(e.target)),id='mock-order-1',status=Number(d.quantity)>5?'PARTIALLY_FILLED':'FILLED';formState.textContent='Accepted · '+id;orders.innerHTML=`<tr data-order-id='${id}' data-status='${status}'><td>${d.instrument}</td><td>${status}</td></tr>`};
             </script>
             """;
     }
