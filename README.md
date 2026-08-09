@@ -1,17 +1,29 @@
-# Gauge Java sample
+# Gauge Java · Securities Order Acceptance
 
-Kleines ausführbares Gauge-Projekt für die Java-Kompatibilitätsprüfung.
+Das Projekt bildet denselben fachlichen Order-Demo-Vertrag wie das
+`securities-order-acceptance`-Projekt mit `gauge-ts` ab. Es zeigt bewusst drei
+getrennte Testebenen:
 
-Voraussetzungen für einen direkten lokalen Lauf: JDK 17+, Maven, Gauge und das
-Java-Plugin (`gauge install java`). Der KnippQAi-Runner selbst verwendet Java 25
-LTS, kann aber weiterhin Projekte mit niedrigerem `--release` ausführen.
+- UI mit Playwright Java gegen den Order Desk,
+- REST mit OkHttp gegen den Order Command Service,
+- Kafka mit dem Java-Consumer gegen das Confluent-Avro-Event.
+
+`default` ist der deterministische Entwicklungs-/Pipeline-Modus. Er verwendet
+eine lokale HTML-Seite, `MockWebServer` und `MockProducer`, aber exakt dieselben
+Gauge-Bindings. Es werden keine Demo-Dienste benötigt:
 
 ```sh
-gauge run specs
+gauge run --env default specs
 ```
 
-KnippQAi erkennt Specs, Szenarien und Java-`@Step`-Bindings, kompiliert Maven-
-oder Gradle-Projekte in einem isolierten Runner-Workspace und löst den gesamten
-Test-Classpath selbst auf. Das Projekt benötigt dafür weder KnippQAi-Hooks noch
-zusätzliche Dependencies oder Konfigurationsdateien. Der Plattform-Agent wird
-über `JAVA_TOOL_OPTIONS` zugeschaltet und erzeugt Evidence sowie Laufzeitmetriken.
+`platform` fährt dieselben Specs gegen die Services der Acceptance-Umgebung:
+
+```sh
+gauge run --env platform specs
+```
+
+Der KnippQAi-Runner verwendet Java 25 und kompiliert dieses Projekt mit
+`--release 21`. Maven-Abhängigkeiten, Gauge-Java-Classpath, Playwright-Browser,
+Evidence und Laufzeitmetriken werden durch den Runner bzw. den injizierten
+Java-Agenten bereitgestellt. Das Testprojekt benötigt keine KnippQAi-Hooks und
+keine Änderungen für die Plattformintegration.
