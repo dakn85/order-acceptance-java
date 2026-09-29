@@ -24,6 +24,7 @@ import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.openqa.selenium.By;
 import org.openqa.selenium.JavascriptExecutor;
+import org.openqa.selenium.StaleElementReferenceException;
 import org.openqa.selenium.WebDriver;
 import org.openqa.selenium.chrome.ChromeDriver;
 import org.openqa.selenium.chrome.ChromeOptions;
@@ -87,8 +88,12 @@ public class OrderSteps {
         browser.findElement(By.id("newOrder")).click();
         new Select(browser.findElement(By.cssSelector("select[name=instrument]"))).selectByVisibleText(instrument);
         browser.findElement(By.cssSelector("[data-side=\"" + side + "\"]")).click();
-        browser.findElement(By.cssSelector("input[name=quantity]")).sendKeys(String.valueOf(quantity));
-        browser.findElement(By.cssSelector("input[name=limitPrice]")).sendKeys(String.valueOf(price));
+        var quantityInput = browser.findElement(By.cssSelector("input[name=quantity]"));
+        quantityInput.clear();
+        quantityInput.sendKeys(String.valueOf(quantity));
+        var priceInput = browser.findElement(By.cssSelector("input[name=limitPrice]"));
+        priceInput.clear();
+        priceInput.sendKeys(String.valueOf(price));
         browser.findElement(By.cssSelector("button[type=submit]")).click();
         var acknowledgement = new WebDriverWait(browser, Duration.ofSeconds(10))
             .until(ExpectedConditions.visibilityOfElementLocated(By.id("formState")));
@@ -101,10 +106,18 @@ public class OrderSteps {
     public void blotterShows(String instrument, String status) {
         assertNotNull(uiOrderId, "The UI did not expose the created order id");
         var selector = By.cssSelector("[data-order-id=\"" + uiOrderId + "\"]");
-        var row = new WebDriverWait(browser, Duration.ofSeconds(10)).until(ExpectedConditions.visibilityOfElementLocated(selector));
-        new WebDriverWait(browser, Duration.ofSeconds(10)).until(driver -> status.equals(driver.findElement(selector).getAttribute("data-status")));
-        assertTrue(row.getText().contains(instrument));
-        assertEquals(status, row.getAttribute("data-status"));
+        new WebDriverWait(browser, Duration.ofSeconds(10)).until(driver -> {
+            try {
+                // Das Blotter ersetzt seine Zeilen bei jedem Status-Update. Die
+                // Referenz darf deshalb keinen Poll-Zyklus überleben.
+                var current = driver.findElement(selector);
+                return current.isDisplayed()
+                    && current.getText().contains(instrument)
+                    && status.equals(current.getAttribute("data-status"));
+            } catch (StaleElementReferenceException ignored) {
+                return false;
+            }
+        });
     }
 
     @Step("Customer <customer> submits a limit <side> order for <quantity> <instrument> at <price> EUR through REST")
