@@ -29,3 +29,5 @@ Der KnippQAi-Runner verwendet Java 25 und kompiliert dieses Projekt mit
 Evidence und Laufzeitmetriken werden durch den Runner bzw. den injizierten
 Java-Agenten bereitgestellt. Das Testprojekt benötigt keine KnippQAi-Hooks und
 keine Änderungen für die Plattformintegration.
+
+<!-- Rückführungstest der Plattform, 2026-10-01T19:37:41.255Z -->
